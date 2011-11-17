@@ -5,7 +5,7 @@ X10_NTHREADS := 24
 #X10_STATIC_THREADS := false
 #X10LAUNCHER_NPROCS := 1
 
-NUM_ASYNCS=8
+NUM_ASYNCS=17
 
 knapsack:
 	$(X10_PATH)/x10c++ -t -v -report postcompile=1 -o Knapsack.exe -optimize -O -NO_CHECKS Knapsack.x10

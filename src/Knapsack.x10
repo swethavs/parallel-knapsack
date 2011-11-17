@@ -143,14 +143,11 @@ public class Knapsack {
 		}
 		bufferState(numAsyncs - 1) = numBuffer - 1;
 		
-		Console.OUT.println("bp start with " + numAsyncs + " threads");
-		
 		finish for (t in (0..(numAsyncs - 1))) {
 			async {
 				var row:Int = t + 1;
 				var idx:Int;
 				while (row <= weight.size) {
-					Console.OUT.println("[" + t + "] bp 1");
 					idx = row - 1;
 					/* previous thread */
 					val prevT:Int = (t - 1 + numAsyncs) % numAsyncs;
@@ -162,9 +159,11 @@ public class Knapsack {
 					{
 						/* buffer index */
 						for (bi in (0..(numBuffer - 1))) {
-							Console.OUT.println("[" + t + "] bp 2");
-							when (bufferState(prevT) >= bi) {
-								Console.OUT.println("[" + t + "] bp 3");
+							//when (bufferState(prevT) >= bi) {
+							while (bufferState(prevT) < bi) {
+								// thread sleep
+							}
+							{
 								/* ready to write*/
 								val start:Int = bi * bufferSize;
 								val end:Int = bi == numBuffer - 1 ? maxW : start + bufferSize - 1;
@@ -189,10 +188,9 @@ public class Knapsack {
 						}
 						row += numAsyncs;
 					}
-				}				
+				}
 			}
 		}
-		Console.OUT.println("bp end");
 		parallelTime += (System.nanoTime()-time)/Meg;
 		return result;
 	}
