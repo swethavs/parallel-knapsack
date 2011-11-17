@@ -153,7 +153,7 @@ public class Knapsack {
 					val prevT:Int = (t - 1 + numAsyncs) % numAsyncs;
 					/* start to write when no longer depended on */
 					while (bufferState(t) == numBuffer - 1) {
-						// thread sleep
+						//System.sleep(1);
 					}
 					//when (bufferState(t) != numBuffer - 1) {
 					{
@@ -161,7 +161,7 @@ public class Knapsack {
 						for (bi in (0..(numBuffer - 1))) {
 							//when (bufferState(prevT) >= bi) {
 							while (bufferState(prevT) < bi) {
-								// thread sleep
+								//System.sleep(1);
 							}
 							{
 								/* ready to write*/
