@@ -5,11 +5,13 @@ X10_NTHREADS := 24
 #X10_STATIC_THREADS := false
 #X10LAUNCHER_NPROCS := 1
 
+NUM_ASYNCS=8
+
 knapsack:
 	$(X10_PATH)/x10c++ -t -v -report postcompile=1 -o Knapsack.exe -optimize -O -NO_CHECKS Knapsack.x10
 
 functests: knapsack
-	salloc -n1 srun.x10sock ./Knapsack.exe  3 12 true > Knapsack.1.out
+	salloc -n1 srun.x10sock ./Knapsack.exe 3 12 $(NUM_ASYNCS) true > Knapsack.1.out
 	@echo "Dumping contents of Knapsack.1.out ... "
 	@grep "" Knapsack.1.out
 	@echo " "
@@ -17,7 +19,7 @@ functests: knapsack
 	@echo " "
 
 perftests: knapsack
-	salloc -n1 srun.x10sock ./Knapsack.exe 10000 10000 false > Knapsack.3.out
+	salloc -n1 srun.x10sock ./Knapsack.exe 10000 10000 $(NUM_ASYNCS) false > Knapsack.3.out
 	@echo "Dumping contents of Knapsack.3.out ... "
 	@grep "" Knapsack.3.out
 	@echo " "

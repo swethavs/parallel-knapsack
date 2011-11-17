@@ -5,6 +5,9 @@ public class Knapsack {
 	
 	public var maxW:Int = 0;  // the weight limit
 	public var size:Int = 0;  // the size of the items
+	public var numAsyncs:Int = 0; // the number of asyncs
+	public var bufferSize:Int = 0; // data read buffer size
+	public var numBuffer:Int = 0; // data read buffer count 
 	/* the weight of each item */
 	public var weight:Array[Int] = null;
 	/* the value of each item */
@@ -16,9 +19,12 @@ public class Knapsack {
 	private static val Meg = 1000*1000;
 	
 	/* Constructor */
-	public def this(item_size:Int, max_weight:Int) {
+	public def this(item_size:Int, max_weight:Int, numAsyncs:Int) {
 		size = item_size;
 		maxW = max_weight;
+		this.numAsyncs = numAsyncs;
+		bufferSize = max(1, maxW / numAsyncs);
+		numBuffer = maxW / bufferSize + ((maxW % bufferSize == 0) ? 0 : 1);
 	}
 	
 	/*
@@ -33,8 +39,8 @@ public class Knapsack {
 	 */
 	public def knapsackSeq():Int {
 		/*
-		 * Please you are confused by the following statements, come back
-		 * here after you skim the code
+		 * If you are confused by the following statements, 
+		 * please come back here after you skim the code
 		 * 
 		 * Define m[i, w] to be the maximum value that 
 		 * can be attained with weight less than or equal to w 
@@ -114,7 +120,81 @@ public class Knapsack {
 	
 	/* the Parallel version to be implemented */
 	public def knapsackPar():Int {
-		return 0;
+		val time = System.nanoTime();
+		var result:Int = 0;
+		/* m[w] is expected to store the maximum value that can be attained with  
+		 * total weight less than or equal to w. m[maxW] then is the solution to
+		 * the problem. */
+		var m:Array[Int](2) = new Array[Int]((0..(numAsyncs - 1))*(0..(maxW + 1)));
+		/* fill m[w] with 0 */
+		for (i in (0..(numAsyncs - 1))) {
+			for (j in (0..(maxW + 1))) {
+				m(i, j) = 0;
+			}
+		}
+		/* buffer index for numAsyncs threads */
+		var bufferState:Array[Int] = new Array[Int](numAsyncs);
+		/* fill bufferState(t) with i (0 based) when thread t finishes writing buffer i
+		 * initialize bufferState(0) with -1
+		 * initialize bufferState(numAsyncs - 1) with (numBuffer - 1) 
+		 */
+		for (t in (0..(numAsyncs - 2))) {
+			bufferState(t) = -1;
+		}
+		bufferState(numAsyncs - 1) = numBuffer - 1;
+		
+		Console.OUT.println("bp start with " + numAsyncs + " threads");
+		
+		finish for (t in (0..(numAsyncs - 1))) {
+			async {
+				var row:Int = t + 1;
+				var idx:Int;
+				while (row <= weight.size) {
+					Console.OUT.println("[" + t + "] bp 1");
+					idx = row - 1;
+					/* previous thread */
+					val prevT:Int = (t - 1 + numAsyncs) % numAsyncs;
+					/* start to write when no longer depended on */
+					while (bufferState(t) == numBuffer - 1) {
+						// thread sleep
+					}
+					//when (bufferState(t) != numBuffer - 1) {
+					{
+						/* buffer index */
+						for (bi in (0..(numBuffer - 1))) {
+							Console.OUT.println("[" + t + "] bp 2");
+							when (bufferState(prevT) >= bi) {
+								Console.OUT.println("[" + t + "] bp 3");
+								/* ready to write*/
+								val start:Int = bi * bufferSize;
+								val end:Int = bi == numBuffer - 1 ? maxW : start + bufferSize - 1;
+								for (w in (start..end)) {
+									/* Use rule 3 and 4 described above */
+									if (weight(idx) > w) {
+										m(t, w) = m(prevT, w);
+									} else {
+										m(t, w) = max(m(prevT, w), m(prevT, w - weight(idx)) + value(idx));
+									}
+								}
+							}
+							/* update current thread's buffer state */
+							bufferState(t) = bi;
+						}
+						/* update prev thread's buffer state to -1 */
+						bufferState(prevT) = -1;
+						/* result */
+						if (row == weight.size) {
+							result = m(t, maxW);
+							break;
+						}
+						row += numAsyncs;
+					}
+				}				
+			}
+		}
+		Console.OUT.println("bp end");
+		parallelTime += (System.nanoTime()-time)/Meg;
+		return result;
 	}
 	
 	public static def max(x:Int, y:Int):Int {
@@ -168,18 +248,25 @@ public class Knapsack {
 		
 		val size = Int.parseInt(args(0));
 		val maxW = Int.parseInt(args(1));
-		val funcTest = Boolean.parseBoolean(args(2));
+		val numAsyncs = Int.parseInt(args(2));
+		val funcTest = Boolean.parseBoolean(args(3));
 		
-		var ks:Knapsack = new Knapsack(size, maxW);
+		var ks:Knapsack = new Knapsack(size, maxW, numAsyncs);
 		ks.generateRandomData();
 		if (funcTest) ks.print();
 		
+		val seqResult:Int = ks.knapsackSeq();
+		val parResult:Int = ks.knapsackPar();
 		Console.OUT.println("The max value we can get with weight limit '" 
-				+ maxW + "' is (Sequential version): " + ks.knapsackSeq());
+				+ maxW + "' is (Sequential version): " + seqResult);
 		Console.OUT.println("The max value we can get with weight limit '" 
-				+ maxW + "' is (Parallel version): " + ks.knapsackPar());
-		Console.OUT.println("");
-		Console.OUT.println("[Done.] Time to compute serially is " + ks.serialTime
-				+ ", and to compute in parallel is " + ks.parallelTime);
+				+ maxW + "' is (Parallel version): " + parResult);
+		Console.OUT.println();
+		if (seqResult == parResult) {
+			Console.OUT.println("[Done.] Time to compute serially is " + ks.serialTime
+					+ ", and to compute in parallel is " + ks.parallelTime);
+		} else {
+			Console.OUT.println("[Error.] Inconsistent result!");
+		}
 	}
 }
