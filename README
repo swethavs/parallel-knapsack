@@ -1,5 +1,0 @@
-Run 'make functests' for functional test
-Run 'make perftests' for performance test
-
-All the documents are in the code
-For this milestone, please focus on the method: 'knapsackSeq'
