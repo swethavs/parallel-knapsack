@@ -1,5 +1,94 @@
+1> Notes:
 Run 'make functests' for functional test
 Run 'make perftests' for performance test
 
-All the documents are in the code
-For this milestone, please focus on the method: 'knapsackSeq'
+
+2> What's interesting?
+In the Sequential version, we used dynamic program (DP) to implement the solution of 
+the 0-1 Knapsack NP problem. (http://en.wikipedia.org/wiki/Knapsack_problem). 
+Traditionally, DP uses cached table to store the intermediate solutions to the problem,
+and replace the duplicate calculations by table lookups to speed up the execution. 
+
+Parallel programming for DP has a major challenge, which is, the entries in the DP
+table usually have strong dependencies on each other. The 'Knapsack' problem shows a
+most common dependency for DP table. As shown in the following figure (which shows a
+DP table), for the element 'x', it depends all the elements in the marked rectangular
+area to its upper-left, which means if only all the elements in the rectangular area
+are calculated, can we start calculating x.
+
+
+          -------------------------------------
+          |\|\|\|\|\|\|\|\|\|\| | | | | | | | | 
+          -------------------------------------
+          |\|\|\|\|\|\|\|\|\|\| | | | | | | | |
+          -------------------------------------
+          |\|\|\|\|\|\|\|\|\|\| | | | | | | | |
+          -------------------------------------
+          | | | | | | | | | |x| | | | | | | | |
+          -------------------------------------
+          | | | | | | | | | | | | | | | | | | |
+          -------------------------------------
+          | | | | | | | | | | | | | | | | | | |
+          -------------------------------------
+          
+          
+In order to minize the dependency impact on the cost of synchronizations (between
+async activities), we carefully chose the following execution sequence:
+
+                            'block'            
+    row 0  -----|-----|-----|-----|-----|-----|-----|-----|----->
+    row 1  -----|-----|-----|-----|-----|-----|----->
+        2  -----|-----|-----|-----|----->
+        3  -----|-----|-----|----->
+        4  -----|-----|----->
+        5  -----|----->
+        6  ----->                                                                          
+        .
+        .
+              
+Each row in the above graph stands for the exection of a single row in the DP table
+(which is taken care of by different async jobs). The values in one row depends on
+the values in the row above it.  Further more, in each row, we combine entries into
+larger unit which we call 'blocks'. And we always make sure that a row's execution is
+'at least' one block ahead of the row below it. In this way, we can ensure that when 
+a cell in the table is calculated, its dependent values are always available. The
+introduction of the concept of 'blocks' relieves us from checking dependencies for
+every cell, therefore improved the performance. 
+                    
+More detailed explanations are included as comments with the method 'knapsackPar'. 
+                        
+
+3> Performance Test Result:
+==========================================================
+Select from 10000 items, with max weight 10000:
+
+salloc -n1 srun.x10sock ./Knapsack.exe 10000 10000 17 false > Knapsack.3.out
+salloc: Granted job allocation 8838
+GC Warning: Limiting number of mark threads
+GC Warning: Limiting number of mark threads
+GC Warning: Limiting number of mark threads
+salloc: Relinquishing job allocation 8838
+salloc: Job allocation 8838 has been revoked.
+Dumping contents of Knapsack.3.out ...
+The max value we can get with weight limit '10000' is (Sequential version): 8869
+The max value we can get with weight limit '10000' is (Parallel version): 8869
+
+[Done.] Time to compute serially is 1080, and to compute in parallel is 144
+==========================================================
+Select from 100000 items, with max weigth 100000:
+
+salloc -n1 srun.x10sock ./Knapsack.exe 100000 100000 17 false > Knapsack.3.out
+salloc: Granted job allocation 8839
+GC Warning: Limiting number of mark threads
+GC Warning: Limiting number of mark threads
+GC Warning: Limiting number of mark threads
+
+salloc: Relinquishing job allocation 8839
+Dumping contents of Knapsack.3.out ...
+The max value we can get with weight limit '100000' is (Sequential version): 29548
+The max value we can get with weight limit '100000' is (Parallel version): 29548
+
+[Done.] Time to compute serially is 101257, and to compute in parallel is 12860
+
+Find your results in Knapsack.3.out
+==========================================================
